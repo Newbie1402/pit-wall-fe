@@ -36,6 +36,11 @@ final class UserPreferencesStore {
         didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
     }
 
+    /// Race weekends the user follows (shows follow state on Race Detail).
+    var followedRaceIDs: Set<String> {
+        didSet { defaults.set(Array(followedRaceIDs).sorted(), forKey: Keys.followedRaces) }
+    }
+
     private let defaults: UserDefaults
 
     // MARK: - Init
@@ -60,6 +65,7 @@ final class UserPreferencesStore {
             notifications = .default
         }
         appearance = AppearanceMode(rawValue: d.string(forKey: Keys.appearance) ?? "") ?? .dark
+        followedRaceIDs = Set(d.stringArray(forKey: Keys.followedRaces) ?? [])
     }
 
     // MARK: - Favorites
@@ -84,11 +90,20 @@ final class UserPreferencesStore {
         favoriteConstructorID == id
     }
 
+    func toggleFollowedRace(_ id: String) {
+        if followedRaceIDs.contains(id) {
+            followedRaceIDs.remove(id)
+        } else {
+            followedRaceIDs.insert(id)
+        }
+    }
+
     private enum Keys {
         static let onboardingComplete = "pw.onboardingComplete"
         static let favoriteDrivers = "pw.favoriteDriverIDs"
         static let favoriteConstructor = "pw.favoriteConstructorID"
         static let notifications = "pw.notificationPreferences"
         static let appearance = "pw.appearance"
+        static let followedRaces = "pw.followedRaceIDs"
     }
 }

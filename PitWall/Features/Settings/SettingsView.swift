@@ -1,11 +1,11 @@
 import SwiftUI
-import UserNotifications
 
-/// Settings: favorites, notifications, calendar, appearance, widgets, about.
+/// Settings root: favorites, notifications, calendar, appearance, widgets,
+/// and about. All edits go through `UserPreferencesStore`.
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
 
-    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var showsNotificationDeniedHint = false
 
     var body: some View {
         @Bindable var preferences = environment.preferences
@@ -13,184 +13,218 @@ struct SettingsView: View {
         List {
             favoritesSection
             notificationsSection(preferences)
-            calendarSection
             appearanceSection(preferences)
             widgetsSection
             aboutSection
         }
         .navigationTitle("SETTINGS")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await refreshNotificationStatus() }
     }
 
-    // MARK: - Sections
+    // MARK: - Favorites
 
     private var favoritesSection: some View {
         Section("Favorites") {
             NavigationLink {
-                FavoriteTeamEditorView()
+                SettingsTeamEditorView()
             } label: {
-                LabeledContent {
-                    Text(favoriteTeamName)
-                        .foregroundStyle(PWColors.textTertiary)
-                } label: {
-                    Label("Favorite Team", systemImage: "flag.2.crossed")
-                }
+                Label("Favorite Team", systemImage: "flag.2.crossed")
             }
             NavigationLink {
-                FavoriteDriversEditorView()
+                SettingsDriverEditorView()
             } label: {
                 LabeledContent {
                     Text("\(environment.preferences.favoriteDriverIDs.count)")
                         .foregroundStyle(PWColors.textTertiary)
                 } label: {
-                    Label("Favorite Drivers", systemImage: "helmet")
+                    Label("Favorite Drivers", systemImage: "person.3")
                 }
             }
         }
     }
 
+    // MARK: - Notifications
+
     private func notificationsSection(_ preferences: Binding<UserPreferencesStore>) -> some View {
         Section {
-            Toggle(isOn: preferences.notifications.race) {
-                Label("Race Reminders", systemImage: "flag.checkered")
-            }
-            Toggle(isOn: preferences.notifications.qualifying) {
-                Label("Qualifying Reminders", systemImage: "timer")
-            }
-            Toggle(isOn: preferences.notifications.sprint) {
-                Label("Sprint Reminders", systemImage: "bolt.fill")
-            }
-            Toggle(isOn: preferences.notifications.practice) {
-                Label("Practice Reminders", systemImage: "steeringwheel")
-            }
+            Toggle("Race", isOn: preferences.notifications.race)
+            Toggle("Qualifying", isOn: preferences.notifications.qualifying)
+            Toggle("Sprint", isOn: preferences.notifications.sprint)
+            Toggle("Practice", isOn: preferences.notifications.practice)
+
             Picker("Lead Time", selection: preferences.notifications.leadTimeMinutes) {
-                Text("15 minutes").tag(15)
-                Text("30 minutes").tag(30)
-                Text("60 minutes").tag(60)
-            }
-            LabeledContent {
-                Text(statusText)
-                    .foregroundStyle(statusColor)
-            } label: {
-                Label("System Permission", systemImage: "bell.badge")
-            }
-            if notificationStatus == .denied {
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    Label("Open System Settings", systemImage: "arrow.up.forward.app")
-                }
+                Text("15 minutes before").tag(15)
+                Text("30 minutes before").tag(30)
+                Text("60 minutes before").tag(60)
             }
         } header: {
-            Text("Notifications")
+            Text("Session Reminders")
         } footer: {
-            Text("Permission is requested when you set your first reminder, never at launch.")
+            Text("Reminders fire per session you enable, using the lead time above. System permission is requested when you first set a reminder.")
         }
         .tint(PWColors.accent)
     }
 
-    private var calendarSection: some View {
-        Section("Calendar") {
-            LabeledContent {
-                Text("Write access on demand")
-                    .foregroundStyle(PWColors.textTertiary)
-            } label: {
-                Label("Session Events", systemImage: "calendar.badge.plus")
-            }
-            .tint(PWColors.accent)
-        } footer: {
-            Text("Use 'Add to Calendar' on any race weekend to export its sessions.")
-        }
-    }
+    // MARK: - Appearance
 
     private func appearanceSection(_ preferences: Binding<UserPreferencesStore>) -> some View {
-        Section("Appearance") {
-            Picker("Theme", selection: preferences.appearance) {
+        Section {
+            Picker("Appearance", selection: preferences.appearance) {
                 ForEach(AppearanceMode.allCases) { mode in
                     Text(mode.displayName).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
+        } header: {
+            Text("Appearance")
+        } footer: {
+            Text("PitWall is designed dark-first; Light keeps full contrast.")
         }
     }
+
+    // MARK: - Widgets
 
     private var widgetsSection: some View {
         Section {
-            LabeledContent {
-                Text("Ready")
-                    .foregroundStyle(PWColors.success)
-            } label: {
-                Label("Next Race", systemImage: "square.stack.3d.up")
+            LabeledContent("Next Race") {
+                Text("Small • Medium")
+                    .foregroundStyle(PWColors.textTertiary)
             }
-            LabeledContent {
-                Text("Ready")
-                    .foregroundStyle(PWColors.success)
-            } label: {
-                Label("Favorite Driver", systemImage: "square.stack.3d.up.fill")
+            LabeledContent("Favorite Driver") {
+                Text("Small • Medium")
+                    .foregroundStyle(PWColors.textTertiary)
             }
         } header: {
-            Text("Widgets")
+            Text("Home Screen Widgets")
         } footer: {
-            Text("Add 'PitWall' widgets from the Home Screen. They show the next session countdown and your top driver's form.")
+            Text("Long-press the Home Screen, search \"PitWall\" and pick a size. Widgets show your favorites and the next session countdown.")
         }
     }
+
+    // MARK: - About
 
     private var aboutSection: some View {
         Section("About") {
-            LabeledContent {
+            LabeledContent("Version") {
                 Text(appVersion)
                     .foregroundStyle(PWColors.textTertiary)
-            } label: {
-                Label("Version", systemImage: "info.circle")
+                    .monospacedDigit()
             }
-            LabeledContent {
-                Text("Mock data")
+            LabeledContent("Data") {
+                Text("Mock season 2026")
                     .foregroundStyle(PWColors.textTertiary)
-            } label: {
-                Label("Data Source", systemImage: "internaldrive")
             }
-        } footer: {
-            Text("PitWall is an unofficial fan companion. Not affiliated with Formula 1. All data in this build is local mock data.")
+            VStack(alignment: .leading, spacing: PWSpacing.xxs) {
+                Text("PitWall is an unofficial Formula 1 companion built for fans. Not affiliated with F1, Formula One Group, or any team. All data in this build is locally generated mock data.")
+                    .font(PWTypography.caption)
+                    .foregroundStyle(PWColors.textTertiary)
+            }
+            .padding(.vertical, PWSpacing.xxs)
         }
-    }
-
-    // MARK: - Helpers
-
-    private var favoriteTeamName: String {
-        guard let id = environment.preferences.favoriteConstructorID,
-              let constructor = MockRoster.constructor(for: id) else {
-            return "None"
-        }
-        return constructor.shortName
     }
 
     private var appVersion: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
-        return version
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        let version = short ?? "1.0"
+        guard let build else { return version }
+        return "\(version) (\(build))"
+    }
+}
+
+/// Reuses the onboarding team picker for editing the favorite constructor.
+struct SettingsTeamEditorView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @State private var constructors: Loadable<[Constructor]> = .idle
+
+    var body: some View {
+        Group {
+            switch constructors {
+            case .idle, .loading:
+                PWLoadingView(message: "Loading teams…")
+            case .failed(let message):
+                PWErrorStateView(message: message) {
+                    Task { await load() }
+                }
+            case .loaded(let loaded):
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: PWSpacing.sm),
+                                        GridItem(.flexible(), spacing: PWSpacing.sm)],
+                              spacing: PWSpacing.sm) {
+                        ForEach(loaded) { constructor in
+                            ConstructorCard(
+                                constructor: constructor,
+                                isSelected: environment.preferences.isFavoriteConstructor(constructor.id)
+                            ) {
+                                if environment.preferences.isFavoriteConstructor(constructor.id) {
+                                    environment.preferences.setFavoriteConstructor(nil)
+                                } else {
+                                    environment.preferences.setFavoriteConstructor(constructor.id)
+                                }
+                            }
+                        }
+                    }
+                    .pwSectionSpacing()
+                    .padding(.vertical, PWSpacing.md)
+                }
+            }
+        }
+        .navigationTitle("FAVORITE TEAM")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
     }
 
-    private var statusText: String {
-        switch notificationStatus {
-        case .authorized, .provisional, .ephemeral: return "Allowed"
-        case .denied: return "Denied"
-        case .notDetermined: return "Not requested"
-        @unknown default: return "Unknown"
+    private func load() async {
+        constructors = .loading
+        do {
+            constructors = .loaded(try await environment.constructorRepository.constructors())
+        } catch {
+            constructors = .failed(PWErrorMapper.message(for: error))
         }
     }
+}
 
-    private var statusColor: Color {
-        switch notificationStatus {
-        case .authorized, .provisional, .ephemeral: return PWColors.success
-        case .denied: return PWColors.live
-        default: return PWColors.textTertiary
+/// Reuses the onboarding driver list for editing favorite drivers.
+struct SettingsDriverEditorView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @State private var drivers: Loadable<[Driver]> = .idle
+
+    var body: some View {
+        Group {
+            switch drivers {
+            case .idle, .loading:
+                PWLoadingView(message: "Loading grid…")
+            case .failed(let message):
+                PWErrorStateView(message: message) {
+                    Task { await load() }
+                }
+            case .loaded(let loaded):
+                ScrollView {
+                    DriverSelectionList(
+                        drivers: loaded,
+                        constructors: MockRoster.constructors,
+                        selectedIDs: Binding(
+                            get: { environment.preferences.favoriteDriverIDs },
+                            set: { environment.preferences.favoriteDriverIDs = $0 }
+                        )
+                    )
+                    .pwSectionSpacing()
+                    .padding(.vertical, PWSpacing.md)
+                }
+            }
         }
+        .navigationTitle("FAVORITE DRIVERS")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
     }
 
-    private func refreshNotificationStatus() async {
-        notificationStatus = await environment.notifications.authorizationStatus()
+    private func load() async {
+        drivers = .loading
+        do {
+            drivers = .loaded(try await environment.driverRepository.drivers())
+        } catch {
+            drivers = .failed(PWErrorMapper.message(for: error))
+        }
     }
 }
 

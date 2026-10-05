@@ -4,6 +4,8 @@ import Foundation
 protocol RaceRepository: Sendable {
     func season(year: Int) async throws -> Season
     func race(id: String) async throws -> Race
+    /// Full result set for one race weekend, when it exists.
+    func results(for raceID: String) async throws -> RaceResult
 }
 
 /// Drivers and their season statistics.
